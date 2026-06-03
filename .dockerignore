@@ -1,0 +1,9 @@
+.venv/
+wiki-sync/
+*.state.json
+sync*.log
+.env
+.git/
+__pycache__/
+*.pyc
+.omc/
