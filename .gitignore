@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# 暫存的 Wiki repo (WORKDIR)
+/tmp/wiki-sync/
+/wiki-sync/
+
+# 增量同步狀態檔與執行 log
+*.state.json
+*.log
+
+# 環境變數
+.env
