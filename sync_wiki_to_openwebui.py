@@ -14,7 +14,7 @@ GitLab Wiki -> Open WebUI 知識庫同步腳本 (實測對應 Open WebUI 0.9.6 /
      讓檢索命中時模型看得到出處、回答能附上可點連結。
   3. incremental: 查 KB 既有檔的 file_hash -> 與 render 後內容的 sha256 對帳 -> 增/改/刪
      full:        reset KB -> 上傳全部
-  4. 上傳檔名把目錄攤平成 "功能邏輯__簽核流程.md":
+  4. 上傳檔名把目錄攤平成 "guides__approval-flow.md":
      Open WebUI 上傳一律只留 basename (0.11.3 實測仍如此), 用真的斜線會丟失路徑。
      add 失敗時立即刪除已上傳的 file 物件, 避免孤兒檔累積
 
@@ -156,7 +156,7 @@ def sha256_bytes(data: bytes) -> str:
 
 # ---- 來源連結 ----
 def wiki_page_slug(rel_path: str) -> str:
-    """相對路徑 -> wiki 頁面 slug: "功能邏輯/簽核流程.md" -> "功能邏輯/簽核流程"。"""
+    """相對路徑 -> wiki 頁面 slug: "guides/approval-flow.md" -> "guides/approval-flow"。"""
     return rel_path[:-3] if rel_path.endswith(".md") else rel_path
 
 
@@ -189,7 +189,7 @@ def render_content(path: Path, rel_path: str) -> bytes:
 
 
 def upload_name(rel_path: str) -> str:
-    """相對路徑 -> 攤平後的上傳檔名: "功能邏輯/簽核流程.md" -> "功能邏輯__簽核流程.md"。
+    """相對路徑 -> 攤平後的上傳檔名: "guides/approval-flow.md" -> "guides__approval-flow.md"。
 
     Open WebUI 上傳一律只留 basename (0.9.6 與 0.11.3 都實測如此),
     用真的斜線會讓不同子目錄的同名頁在 KB 裡碰撞成一樣的名字。

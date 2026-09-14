@@ -1,117 +1,107 @@
 # sync-gitlab-wiki-to-webopenui
 
-把 GitLab Wiki 同步到 Open WebUI 知識庫的單檔腳本 (對應 Open WebUI 0.9.6)。
+Sync a GitLab Wiki into an [Open WebUI](https://github.com/open-webui/open-webui) knowledge base, so you can ask questions about your wiki and get answers with links back to the original pages.
 
-## 運作流程
+繁體中文說明請見 [README.zh-TW.md](README.zh-TW.md)。
 
-1. `clone` / `pull` GitLab Wiki repo 到暫存目錄
-2. 依 `SYNC_MODE` 同步：
-   - **incremental(預設)**:純內容 sha256 對帳——只上傳新增/變更的 `.md`,移除已刪內容，內容沒變的完全跳過 (不重傳、不重算向量)
-   - **full**:`reset` 清空知識庫後重傳全部
-3. 上傳 → 輪詢處理狀態 → 加入知識庫;處理失敗的檔會清掉孤兒並於下次自動重試
+## What it does
 
-### 對帳原理 (為何只靠內容雜湊)
+1. Clones (or pulls) your GitLab Wiki repository.
+2. Prepends a source link to each `.md` file, pointing back to the original wiki page.
+3. Uploads the pages to an Open WebUI knowledge base.
 
-source of truth 是線上 KB 本身，而非本機狀態檔：掃 `/files/` 篩 `meta.collection_name == 知識庫 ID`,取每個檔的 `meta.file_hash`(== 內容 sha256) 組成集合。
+Because the link travels with the content, the model can cite the page it answered from instead of leaving you to guess.
 
-- 本機檔 sha256 **在**集合內 → 跳過
-- **不在** → 上傳 (新增或修改後的新內容)
-- 線上某物件 hash **不在**本機 → 移除 (已刪內容、修改前舊版、殘留物件)
+```markdown
+> 來源：[guides/approval-flow](https://gitlab.example.com/group/project/-/wikis/guides/approval-flow)
 
-不用檔名比對 (Open WebUI 上傳會砍掉目錄只留 basename、且中文有 NFD/NFC 問題),不用 `GET /knowledge/{id}`(該端點即使檔案已加入也回 `files:0`)。Open WebUI 的「內容重複」400 當最後防線。
+# Approval Flow
+...
+```
 
-## 安裝
+Two sync modes:
+
+- **`incremental`** (default) — uploads only new or changed pages, removes deleted ones, skips everything unchanged.
+- **`full`** — resets the knowledge base and re-uploads everything.
+
+## Setup
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+cp .env.example .env   # then fill it in
 ```
 
-## 設定
+| Variable | Required | Description |
+|---|---|---|
+| `GITLAB_WIKI_URL` | ✅ | Wiki repo URL, ending in `.wiki.git` |
+| `GITLAB_TOKEN` | ✅ | Personal/Project Access Token with `read_repository` |
+| `OWUI_URL` | ✅ | Open WebUI base URL |
+| `OWUI_TOKEN` | ✅ | Open WebUI API key (must own the knowledge base) |
+| `OWUI_KNOWLEDGE_ID` | ✅ | Target knowledge base ID |
+| `WORKDIR` | | Scratch directory, defaults to `/tmp/wiki-sync` |
+| `SYNC_MODE` | | `incremental` (default) or `full` |
+| `WIKI_WEB_BASE` | | Source-link prefix; derived from `GITLAB_WIKI_URL` by default |
+| `DRY_RUN` | | Any non-empty value except `0`/`false`/`no`/`off` — print the plan without touching the knowledge base |
 
-複製範本並填入實際值：
-
-```bash
-cp .env.example .env
-# 編輯 .env
-```
-
-| 變數 | 必填 | 說明 |
-|------|------|------|
-| `GITLAB_WIKI_URL` | ✅ | Wiki repo 網址 (`...project.wiki.git`) |
-| `GITLAB_TOKEN` | ✅ | 具 `read_repository` 權限的 PAT / Project Access Token |
-| `OWUI_URL` | ✅ | Open WebUI 服務網址 |
-| `OWUI_TOKEN` | ✅ | Open WebUI API key (知識庫擁有者) |
-| `OWUI_KNOWLEDGE_ID` | ✅ | 目標知識庫 ID |
-| `WORKDIR` | | 暫存目錄，預設 `/tmp/wiki-sync` |
-| `SYNC_MODE` | | `incremental`(預設) 或 `full` |
-
-## 執行
+## Usage
 
 ```bash
 set -a; source .env; set +a
 python sync_wiki_to_openwebui.py
 ```
 
-退出碼：全數成功為 `0`,有任一檔失敗為 `1`。
+Exit code is `0` when every page succeeded, `1` if any failed.
 
-## Docker
+Preview first, without touching anything online:
 
-本機快速跑一次:
+```bash
+DRY_RUN=1 python sync_wiki_to_openwebui.py
+```
+
+### Docker
 
 ```bash
 docker build -t wiki-sync:latest .
 docker run --rm --env-file .env wiki-sync:latest
 ```
 
-image 內含 `git` 與依賴,跑完即結束。腳本無本機狀態檔 (source of truth 在線上 KB),容器每次重新 clone 也完全正確,不需掛載 volume。
-
-### 發佈多平台 image 到 Docker Hub
-
-開發機常是 arm64 (Apple Silicon)、部署機是 amd64,所以要發佈同時支援兩種架構的 image。用 `docker buildx`,已包成 `Makefile`:
+To publish a multi-arch image (the dev machine is often arm64 while servers are amd64):
 
 ```bash
-# 1. 登入 Docker Hub
 docker login
-
-# 2. 多平台建置 (amd64 + arm64) 並推上去;IMAGE 換成你的 Docker Hub namespace/repo
 make push IMAGE=<dockerhub-user>/sync-gitlab-wiki-to-webopenui TAG=latest
 ```
 
-`make push` 等同:
+### Scheduling
 
-```bash
-docker buildx build --platform linux/amd64,linux/arm64 \
-  -t <dockerhub-user>/sync-gitlab-wiki-to-webopenui:latest --push .
-```
-
-(只想驗證兩平台都建得起來、不推送:`make build`。首次會自動建一個 `docker-container` 的 buildx builder。)
-
-部署機直接拉來跑,Docker 會自動選對應架構:
-
-```bash
-docker run --rm --env-file .env <dockerhub-user>/sync-gitlab-wiki-to-webopenui:latest
-```
-
-## 排程 (cron)
-
-在 host 上用 crontab 定期跑。退出碼非 0 表示有檔失敗,可接通知。**排程間隔需大於單次執行時間,避免重疊。**
-
-### 跑 Docker image (建議)
+The script keeps no local state — the knowledge base itself is the source of truth — so a container can be thrown away and recreated freely. Run it hourly with cron:
 
 ```cron
-0 * * * * docker run --rm --env-file /path/to/.env <dockerhub-user>/sync-gitlab-wiki-to-webopenui:latest >> /var/log/wiki-sync.log 2>&1
+0 * * * * docker run --rm --pull always --env-file /path/to/.env \
+          <dockerhub-user>/sync-gitlab-wiki-to-webopenui:latest >> /var/log/wiki-sync.log 2>&1
 ```
 
-### 直接跑腳本
+Keep the interval longer than one run takes, so executions never overlap. `--pull always` matters: without it Docker keeps using a cached image, and a stale image can fight with a newer one over the same knowledge base.
 
-```cron
-0 * * * * cd /path/to/repo && set -a && . ./.env && set +a && .venv/bin/python sync_wiki_to_openwebui.py >> sync.log 2>&1
-```
+## How reconciliation works
 
-> n8n 的 `Execute Command` 是在 n8n 容器內執行,預設沒有 docker CLI 也沒掛 docker socket,**無法直接 `docker run`**。要用 n8n 排程的話,改用 **SSH node** 連到 host 執行上面的指令。
+The knowledge base is the source of truth, not a local state file. The script lists the files already there, compares their content hashes against the local ones, and uploads only what is missing.
 
-## 已知限制
+Two things worth knowing:
 
-- 部分檔案可能在 Open WebUI 端處理失敗 (`process/status` 回 `failed`),常見原因是 Open WebUI 主機 file descriptor 耗盡 (`Too many open files`,embedding 連不上)。腳本會清掉孤兒並於下次自動重試;根因需在 Open WebUI 端調高 `nofile` ulimit 並修連線洩漏。
+- **Hashes are taken after the source link is added**, since that is what actually gets stored. Comparing raw file hashes would never match and would re-upload everything on every run.
+- **Nothing is deleted when any page failed.** The delete list is "online but not local", and a failed upload makes a page look missing — deleting then would take the old version down with it.
+
+## Notes
+
+- Open WebUI keeps only the basename of an uploaded file, so nested pages are flattened: `guides/approval-flow.md` is uploaded as `guides__approval-flow.md`. Without this, same-named pages in different folders would collide.
+- Enabling source links changes every page's hash, so the first run after upgrading re-uploads everything. Check that your embedding backend is healthy first, and use `DRY_RUN=1` to preview.
+- The source link sits at the top of each page. Long pages get split into several chunks and only the first one carries it, so a retrieval that lands mid-document may not see the link. Telling the model how to derive a page URL from the filename (in the RAG prompt template) covers the rest.
+- Pages can fail on the Open WebUI side (`process/status` returns `failed`), usually when the host runs out of file descriptors. The script cleans up the orphaned upload and retries on the next run.
+
+## License
+
+MIT
