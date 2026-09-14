@@ -13,7 +13,7 @@ English version: [README.md](README.md)
 因為連結跟著內容一起進到知識庫，模型回答時就能指出資料來自哪一頁，不用自己猜。
 
 ```markdown
-> 來源：[guides/approval-flow](https://gitlab.example.com/group/project/-/wikis/guides/approval-flow)
+> Source: [guides/approval-flow](https://gitlab.example.com/group/project/-/wikis/guides/approval-flow)
 
 # Approval Flow
 ...
@@ -44,6 +44,7 @@ cp .env.example .env   # 接著填入實際值
 | `WORKDIR` | | 暫存目錄，預設 `/tmp/wiki-sync` |
 | `SYNC_MODE` | | `incremental`(預設)或 `full` |
 | `WIKI_WEB_BASE` | | 來源連結的網址前綴，預設由 `GITLAB_WIKI_URL` 推導 |
+| `SOURCE_LABEL` | | 來源行的標籤文字，預設 `Source`；中文 wiki 可設成 `來源`。改動它會改變每頁的內容雜湊，等於要求全量重傳一次 |
 | `DRY_RUN` | | 非空即開(只有 `0`/`false`/`no`/`off` 才關)——只印出計畫，完全不碰線上知識庫 |
 
 ## 執行

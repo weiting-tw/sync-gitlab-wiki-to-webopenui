@@ -30,6 +30,7 @@ GitLab Wiki -> Open WebUI 知識庫同步腳本 (實測對應 Open WebUI 0.9.6 /
   WORKDIR           暫存目錄 (預設 /tmp/wiki-sync)
   SYNC_MODE         incremental | full (預設 incremental)
   WIKI_WEB_BASE     Wiki 頁面網址前綴 (預設由 GITLAB_WIKI_URL 推導)
+  SOURCE_LABEL      來源行的標籤文字 (預設 Source);改動它會改變每頁雜湊而需全量重傳
   DRY_RUN           非空即開 (只有 0/false/no/off 才關): 只印出將要做什麼與 render 樣本,
                     完全不碰線上 KB
 
@@ -89,6 +90,9 @@ def parse_flag(name: str) -> bool:
 
 
 DRY_RUN         = parse_flag("DRY_RUN")
+# 插在每頁開頭那行來源連結的標籤文字。改動它會改變每一頁的內容雜湊,
+# 等於要求全量重傳一次 — 既有部署要沿用原本的字就在 .env 指定。
+SOURCE_LABEL    = os.environ.get("SOURCE_LABEL", "Source")
 
 if SYNC_MODE not in ("incremental", "full"):
     sys.exit(f"SYNC_MODE 僅支援 incremental / full，收到: {SYNC_MODE}")
@@ -184,7 +188,7 @@ def render_content(path: Path, rel_path: str) -> bytes:
     except UnicodeDecodeError as e:
         raise RuntimeError(f"不是 UTF-8 編碼: {e}") from e
     slug = wiki_page_slug(rel_path)
-    header = f"> 來源：[{slug}]({wiki_page_url(rel_path)})\n\n"
+    header = f"> {SOURCE_LABEL}: [{slug}]({wiki_page_url(rel_path)})\n\n"
     return (header + raw).encode("utf-8")
 
 

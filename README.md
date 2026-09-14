@@ -13,7 +13,7 @@ Sync a GitLab Wiki into an [Open WebUI](https://github.com/open-webui/open-webui
 Because the link travels with the content, the model can cite the page it answered from instead of leaving you to guess.
 
 ```markdown
-> 來源：[guides/approval-flow](https://gitlab.example.com/group/project/-/wikis/guides/approval-flow)
+> Source: [guides/approval-flow](https://gitlab.example.com/group/project/-/wikis/guides/approval-flow)
 
 # Approval Flow
 ...
@@ -44,6 +44,7 @@ cp .env.example .env   # then fill it in
 | `WORKDIR` | | Scratch directory, defaults to `/tmp/wiki-sync` |
 | `SYNC_MODE` | | `incremental` (default) or `full` |
 | `WIKI_WEB_BASE` | | Source-link prefix; derived from `GITLAB_WIKI_URL` by default |
+| `SOURCE_LABEL` | | Label used in the source line, defaults to `Source`. Changing it rewrites every page's hash and forces a full re-upload |
 | `DRY_RUN` | | Any non-empty value except `0`/`false`/`no`/`off` — print the plan without touching the knowledge base |
 
 ## Usage
